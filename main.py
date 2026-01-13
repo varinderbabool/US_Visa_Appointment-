@@ -103,7 +103,7 @@ def get_user_inputs() -> Dict[str, Any]:
             print("   ❌ Invalid input. Please enter a number.")
     
     # Set fixed values (not prompted)
-    inputs['telegram_token'] = '8035456582:AAGFF8HJBjepiL7eg_oIEVwdMQmWWCiJIkA'
+    inputs['telegram_token'] = ''
     inputs['earliest_date'] = '2026-01-31'
     inputs['latest_date'] = '2026-12-31'
     inputs['current_date'] = '2027-06-30'
