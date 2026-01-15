@@ -60,6 +60,22 @@ class VisaScraper:
         except Exception as e:
             logger.error(f"Failed to initialize WebDriver: {e}")
             return False
+
+    def clear_date_field(self) -> bool:
+        """Clear the appointment date field value to avoid stale selections."""
+        try:
+            if not self.driver:
+                return False
+            date_field = self.driver.find_element(By.ID, "appointments_consulate_appointment_date")
+            self.driver.execute_script(
+                "arguments[0].value=''; arguments[0].dispatchEvent(new Event('change', {bubbles:true}));",
+                date_field
+            )
+            logger.info("Cleared appointment date field")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to clear appointment date field: {e}")
+            return False
     
     def set_max_date(self, max_date_str: str):
         """Set maximum date for checking appointments."""
@@ -488,7 +504,6 @@ class VisaScraper:
         """Navigate to Reschedule Appointment page."""
         try:
             wait = WebDriverWait(self.driver, 20)
-            time.sleep(2)
             
             # First, click the accordion title to expand "Reschedule Appointment" section
             logger.info("Looking for Reschedule Appointment accordion item...")
@@ -623,10 +638,13 @@ class VisaScraper:
             return False
     
     def select_location(self, location: str = "Toronto") -> bool:
-        """Select consular section location (e.g., Toronto)."""
+        """Select consular section location (e.g., Toronto).
+        
+        Note: This method does NOT check for system busy errors.
+        System busy should only be checked when calendar fails to open.
+        """
         try:
             wait = WebDriverWait(self.driver, 20)
-            time.sleep(2)
             
             # Find location dropdown using the specific ID from the HTML
             location_select = None
@@ -657,14 +675,10 @@ class VisaScraper:
                 try:
                     select.select_by_visible_text(location)
                     logger.info(f"Selected location: {location}")
-                    time.sleep(2)  # Wait for page to update
                     
-                    # Check for system busy error after selecting location
-                    if self.check_system_busy_error():
-                        logger.error("System is busy error detected after selecting location")
-                        return False
+                    # Don't check for system busy here - wait until we try to open calendar
+                    # System busy should only be checked if calendar fails to open
                     
-                    time.sleep(1)  # Additional wait for calendar to load
                     return True
                 except:
                     # Try by value or partial text match
@@ -672,14 +686,10 @@ class VisaScraper:
                         if location.lower() in option.text.lower():
                             select.select_by_visible_text(option.text)
                             logger.info(f"Selected location: {option.text}")
-                            time.sleep(2)  # Wait for page to update
                             
-                            # Check for system busy error after selecting location
-                            if self.check_system_busy_error():
-                                logger.error("System is busy error detected after selecting location")
-                                return False
+                            # Don't check for system busy here - wait until we try to open calendar
+                            # System busy should only be checked if calendar fails to open
                             
-                            time.sleep(1)  # Additional wait for calendar to load
                             return True
                 
                 logger.warning(f"Could not find location option: {location}")
@@ -704,7 +714,6 @@ class VisaScraper:
             # Wait for Continue button to appear (confirms we're on home page)
             wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Continue')]")))
             logger.info("Successfully navigated to Candidate Home")
-            time.sleep(1)
             return True
                 
         except Exception as e:
@@ -722,14 +731,17 @@ class VisaScraper:
         return self.select_location(counselor_id)
     
     def _open_calendar(self) -> bool:
-        """Open the calendar popup by clicking the calendar icon."""
+        """Open the calendar popup by clicking the calendar icon using JavaScript.
+        
+        Note: Calendar icon is not directly clickable, so we use JavaScript click directly.
+        """
         try:
             wait = WebDriverWait(self.driver, 10)
             
             # Wait for date field to be present
             date_field = wait.until(EC.presence_of_element_located((By.ID, "appointments_consulate_appointment_date")))
             
-            # Find and click calendar icon
+            # Find calendar icon
             calendar_icon_selectors = [
                 ".calendar_icon",
                 "img.calendar_icon",
@@ -750,32 +762,25 @@ class VisaScraper:
                 logger.warning("Calendar icon not found")
                 return False
             
-            # Click calendar icon
+            # Use JavaScript click directly (calendar icon is not directly interactable)
             try:
                 self.driver.execute_script("arguments[0].scrollIntoView(true);", calendar_icon)
-                time.sleep(0.2)  # Reduced from 0.5
-                calendar_icon.click()
-                logger.info("Clicked calendar icon")
-                time.sleep(0.8)  # Reduced from 2
+                self.driver.execute_script("arguments[0].click();", calendar_icon)
+                logger.info("Clicked calendar icon using JavaScript")
                 return True
             except Exception as e:
-                logger.warning(f"Error clicking calendar icon: {e}")
-                # Try JavaScript click
-                try:
-                    self.driver.execute_script("arguments[0].click();", calendar_icon)
-                    logger.info("Clicked calendar icon using JavaScript")
-                    time.sleep(0.8)  # Reduced from 2
-                    return True
-                except Exception as e2:
-                    logger.error(f"Failed to click calendar icon: {e2}")
-                    return False
+                logger.error(f"Failed to click calendar icon with JavaScript: {e}")
+                return False
             
         except Exception as e:
             logger.error(f"Error opening calendar: {e}")
             return False
     
     def _click_next_month(self) -> bool:
-        """Click the next month button in the calendar."""
+        """Click the next month button in the calendar using JavaScript.
+        
+        Note: Calendar buttons may not be directly clickable, so we use JavaScript click directly.
+        """
         try:
             # Common selectors for next month button
             next_month_selectors = [
@@ -793,23 +798,15 @@ class VisaScraper:
                 try:
                     next_button = self.driver.find_element(By.CSS_SELECTOR, selector)
                     if next_button.is_displayed() and next_button.is_enabled():
+                        # Use JavaScript click directly (calendar buttons may not be directly interactable)
                         try:
                             self.driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
-                            time.sleep(0.1)  # Reduced from 0.3
-                            next_button.click()
-                            logger.info("Clicked next month button")
-                            time.sleep(0.8)  # Reduced from 1.5
+                            self.driver.execute_script("arguments[0].click();", next_button)
+                            logger.info("Clicked next month button using JavaScript")
                             return True
                         except Exception as e:
                             logger.debug(f"Error clicking next month with selector {selector}: {e}")
-                            # Try JavaScript click
-                            try:
-                                self.driver.execute_script("arguments[0].click();", next_button)
-                                logger.info("Clicked next month button using JavaScript")
-                                time.sleep(0.8)  # Reduced from 1.5
-                                return True
-                            except:
-                                continue
+                            continue
                 except NoSuchElementException:
                     continue
             
@@ -927,17 +924,12 @@ class VisaScraper:
             
             # Scroll into view
             self.driver.execute_script("arguments[0].scrollIntoView(true);", date_element)
-            time.sleep(0.2)  # Reduced from 0.5
             
-            # Click the date
-            try:
-                date_element.click()
-            except:
-                self.driver.execute_script("arguments[0].click();", date_element)
+            # Use JavaScript click directly (date elements may not be directly interactable)
+            self.driver.execute_script("arguments[0].click();", date_element)
             
             date_text = date_element.text.strip()
-            logger.info(f"Selected date: {date_text}")
-            time.sleep(1.5)  # Reduced from 2 - Wait for date to be selected and calendar to close
+            logger.info(f"Selected date: {date_text} using JavaScript")
             return True
             
         except Exception as e:
@@ -952,7 +944,6 @@ class VisaScraper:
         
         try:
             wait = WebDriverWait(self.driver, 20)
-            time.sleep(2)
             
             # Wait for date/time fields to appear after location selection
             try:
@@ -966,26 +957,25 @@ class VisaScraper:
             date_field_value = date_field.get_attribute('value')
             if date_field_value and date_field_value.strip():
                 logger.info(f"Date field already has a value: {date_field_value}")
-                # Date is already selected, return it
-                location = self.selected_counselor or "Toronto"
-                return {
-                    'date': date_field_value,
-                    'location': location,
-                    'element': None
-                }
+                # Clear stale value so we can re-open calendar and search properly
+                self.clear_date_field()
             
-            # Check for system busy error before trying to open calendar
-            if self.check_system_busy_error():
-                logger.error("System is busy error detected - cannot open calendar")
-                return None
+            # Try to open calendar first - don't check for system busy before attempting
+            logger.info("Attempting to open calendar...")
+            calendar_opened = self._open_calendar()
             
-            # Open calendar
-            if not self._open_calendar():
+            if not calendar_opened:
                 logger.warning("Failed to open calendar")
-                # Check again for system busy error
+                # Only check for system busy error AFTER calendar fails to open
                 if self.check_system_busy_error():
-                    logger.error("System is busy error detected after failed calendar open")
+                    logger.error("System is busy error detected - calendar could not be opened")
+                    return None
+                # If not system busy, it might be another issue (maybe dates not loaded yet)
+                logger.warning("Calendar failed to open, but no system busy error detected. May retry later.")
                 return None
+            
+            # Calendar opened successfully - proceed to check for dates
+            logger.info("Calendar opened successfully, checking for available dates...")
             
             # Traverse calendar months to find a clickable date
             # Limit to 24 months ahead (2 years) or until max_date if set
@@ -1005,9 +995,6 @@ class VisaScraper:
             
             # Click the selected date
             if self._select_date_in_calendar(selected_date_element):
-                # Wait for date selection and calendar to close
-                time.sleep(1)  # Reduced from 2
-                
                 # Check the date field value after selection
                 date_field_value = date_field.get_attribute('value')
                 location = self.selected_counselor or "Toronto"
@@ -1053,27 +1040,26 @@ class VisaScraper:
                 logger.warning("Time select dropdown not found")
                 return []
             
-            # Wait for options to be populated (may take a moment after date selection)
-            max_wait = 5  # Reduced from 10
-            waited = 0
-            while waited < max_wait:
-                from selenium.webdriver.support.ui import Select
-                select = Select(time_select)
-                options = select.options
-                
-                # Check if we have more than just the empty option
-                if len(options) > 1:
-                    for option in options:
-                        option_text = option.text.strip()
-                        if option_text and option.is_enabled() and option.get_attribute('value'):
-                            available_times.append(option_text)
-                    
-                    if available_times:
-                        logger.info(f"Found {len(available_times)} available times")
-                        return available_times
-                
-                time.sleep(0.3)  # Reduced from 0.5
-                waited += 0.3
+            # Wait for options to be populated (no hard sleep)
+            from selenium.webdriver.support.ui import Select
+            try:
+                WebDriverWait(self.driver, 5).until(
+                    lambda d: len(Select(time_select).options) > 1
+                )
+            except TimeoutException:
+                pass
+
+            select = Select(time_select)
+            options = select.options
+            if len(options) > 1:
+                for option in options:
+                    option_text = option.text.strip()
+                    if option_text and option.is_enabled() and option.get_attribute('value'):
+                        available_times.append(option_text)
+
+                if available_times:
+                    logger.info(f"Found {len(available_times)} available times")
+                    return available_times
             
             logger.warning("No available times found in dropdown")
             return []
@@ -1098,10 +1084,9 @@ class VisaScraper:
                 try:
                     date_element = date_info['element']
                     self.driver.execute_script("arguments[0].scrollIntoView(true);", date_element)
-                    time.sleep(0.2)  # Reduced from 0.5
-                    date_element.click()
-                    logger.info("Clicked on date")
-                    time.sleep(2)  # Reduced from 3 - Wait for time dropdown to populate
+                    # Use JavaScript click directly (date elements may not be directly interactable)
+                    self.driver.execute_script("arguments[0].click();", date_element)
+                    logger.info("Clicked on date using JavaScript")
                 except Exception as e:
                     logger.warning(f"Could not click date element: {e}")
             
@@ -1115,35 +1100,51 @@ class VisaScraper:
                 "select.time-slot",
             ]
             
+            from selenium.webdriver.support.ui import Select
+
             # Wait for time dropdown to appear and be populated
             for selector in time_selectors:
                 try:
                     time_select = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
                     if time_select.is_displayed():
-                        # Wait for options to be populated (reduced from 10 to 5 seconds)
-                        max_wait = 5
-                        waited = 0
-                        while waited < max_wait:
-                            from selenium.webdriver.support.ui import Select
-                            select = Select(time_select)
-                            options = select.options
-                            # Check if we have more than just the empty option
-                            if len(options) > 1:
-                                break
-                            time.sleep(0.3)  # Reduced from 0.5
-                            waited += 0.3
+                        # Wait for options to be populated (no hard sleep)
+                        try:
+                            WebDriverWait(self.driver, 5).until(
+                                lambda d: len(Select(time_select).options) > 1
+                            )
+                        except TimeoutException:
+                            logger.warning("Time dropdown options not populated yet")
                         break
                 except TimeoutException:
                     continue
             
             if not time_select:
                 logger.error("Could not find time selector")
+                if isinstance(date_info, dict):
+                    date_info['time_unavailable'] = True
+                return False
+
+            if not time_select.is_enabled():
+                logger.warning("Time dropdown is not enabled yet")
+                if isinstance(date_info, dict):
+                    date_info['time_unavailable'] = True
                 return False
             
             # Select time
             from selenium.webdriver.support.ui import Select
             select = Select(time_select)
             time_selected = False
+
+            # Collect available time options (ignore empty placeholders)
+            available_time_options = [
+                option for option in select.options
+                if option.text.strip() and option.get_attribute('value') and option.is_enabled()
+            ]
+            if not available_time_options:
+                logger.warning("No available time options in dropdown (will retry from home)")
+                if isinstance(date_info, dict):
+                    date_info['time_unavailable'] = True
+                return False
             
             if preferred_time:
                 # Try to select preferred time
@@ -1168,7 +1169,6 @@ class VisaScraper:
                                 select.select_by_visible_text(option_text)
                                 logger.info(f"Selected preferred time: {option_text}")
                                 time_selected = True
-                                time.sleep(0.5)  # Reduced from 1
                                 break
                             except Exception as e:
                                 logger.warning(f"Could not select preferred time {option_text}: {e}")
@@ -1182,7 +1182,6 @@ class VisaScraper:
                                 select.select_by_visible_text(option_text)
                                 logger.info(f"Selected time (partial match): {option_text} (preferred: {preferred_time})")
                                 time_selected = True
-                                time.sleep(0.5)  # Reduced from 1
                                 break
                             except Exception as e:
                                 logger.warning(f"Could not select time {option_text}: {e}")
@@ -1201,7 +1200,6 @@ class VisaScraper:
                             select.select_by_visible_text(option_text)
                             logger.info(f"Selected first available time: {option_text}")
                             time_selected = True
-                            time.sleep(0.5)  # Reduced from 1
                             break
                         except Exception as e:
                             logger.warning(f"Could not select time {option_text}: {e}")
@@ -1210,9 +1208,6 @@ class VisaScraper:
             if not time_selected:
                 logger.error("Could not select any time from dropdown")
                 return False
-            
-            # Wait a moment for the form to update and enable the Reschedule button
-            time.sleep(0.5)  # Reduced from 1
             
             # Check if Reschedule button is enabled
             reschedule_button = None

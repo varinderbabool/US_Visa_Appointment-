@@ -14,14 +14,18 @@ logger = logging.getLogger(__name__)
 class TelegramNotifier:
     """Handles Telegram notifications and confirmation requests."""
     
-    def __init__(self, bot_token: str, chat_id: str):
+    def __init__(self, bot_token: str, chat_id: str, stop_callback: Optional[Callable[[], None]] = None):
         """Initialize Telegram bot."""
         self.bot_token = bot_token
         self.chat_id = str(chat_id)  # Ensure string type
         self.bot = Bot(token=bot_token)
         self.confirmation_callback: Optional[Callable[[bool], None]] = None
+        self.stop_callback = stop_callback
         self.pending_confirmation: bool = False
         self.pending_time_selection: bool = False
+        self.pending_input: bool = False
+        self.input_queue = queue.Queue()
+        self.input_prompt: Optional[str] = None
         self.confirmation_queue = queue.Queue()
         self.time_queue = queue.Queue()
         self.app = None
@@ -41,6 +45,7 @@ class TelegramNotifier:
             # Add handlers
             self.app.add_handler(CommandHandler("start", self._start_command))
             self.app.add_handler(CommandHandler("status", self._status_command))
+            self.app.add_handler(CommandHandler("stop", self._stop_command))
             self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message))
             
             # Run bot
@@ -78,6 +83,23 @@ class TelegramNotifier:
         if self.pending_confirmation:
             status_msg += "\n⏳ Waiting for your confirmation on an available date."
         await update.message.reply_text(status_msg)
+
+    async def _stop_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /stop command to stop the bot."""
+        incoming_chat_id = str(update.message.chat_id)
+        if incoming_chat_id != self.chat_id:
+            return
+        await update.message.reply_text("🛑 Stopping the bot...")
+        if self.stop_callback:
+            try:
+                self.stop_callback()
+            except Exception as e:
+                logger.error(f"Error in stop callback: {e}")
+        # Stop Telegram polling loop after issuing stop
+        try:
+            self.stop()
+        except Exception as e:
+            logger.error(f"Error stopping Telegram bot: {e}")
     
     async def _handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle incoming messages."""
@@ -118,6 +140,11 @@ class TelegramNotifier:
                 await update.message.reply_text(
                     "Please reply with 'yes' to confirm or 'no' to cancel."
                 )
+        elif self.pending_input:
+            # Generic input collection (email/password/etc.)
+            self.pending_input = False
+            self.input_queue.put(text)
+            await update.message.reply_text("✅ Received.")
     
     async def send_notification(self, message: str):
         """Send a notification message."""
@@ -213,6 +240,23 @@ class TelegramNotifier:
             future.result(timeout=30)
         else:
             asyncio.run(self.send_notification(message))
+
+    def request_input_sync(self, prompt: str, timeout: int = 300) -> str:
+        """Request a single input value from the user via Telegram."""
+        self.pending_input = True
+        self.input_prompt = prompt
+        if self._loop and self._loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(self.send_notification(prompt), self._loop)
+            future.result(timeout=30)
+        else:
+            asyncio.run(self.send_notification(prompt))
+        try:
+            value = self.input_queue.get(timeout=timeout)
+            return value
+        except queue.Empty:
+            self.pending_input = False
+            logger.warning("Input timeout - no response received")
+            return ""
     
     def request_confirmation_sync(self, date_info: str) -> bool:
         """Synchronous wrapper for requesting confirmation."""

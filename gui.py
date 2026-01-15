@@ -5,20 +5,23 @@ from tkinter import messagebox, scrolledtext
 from tkcalendar import DateEntry
 import threading
 import sys
+import os
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-# Import settings for consulates
-from settings import CONSULATES
+# Import settings for consulates and configuration
+from settings import CONSULATES, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, CHECK_INTERVAL
+from settings import EARLIEST_ACCEPTABLE_DATE, LATEST_ACCEPTABLE_DATE, CURRENT_BOOKING_DATE, USER_CONSULATE
 
-# Default values
-DEFAULT_TELEGRAM_TOKEN = '8035456582:AAGFF8HJBjepiL7eg_oIEVwdMQmWWCiJIkA'
-DEFAULT_CHAT_ID = '2023815877'
-DEFAULT_CHECK_INTERVAL = 30
-DEFAULT_EARLIEST_DATE = '2026-01-31'
-DEFAULT_LATEST_DATE = '2026-12-31'
-DEFAULT_CURRENT_DATE = '2027-06-30'
-DEFAULT_LOCATION = 'Toronto'
+# Default values (from settings.py or environment variables)
+# Note: Sensitive values like Telegram token should be in .env file, not hardcoded
+DEFAULT_TELEGRAM_TOKEN = TELEGRAM_BOT_TOKEN if TELEGRAM_BOT_TOKEN else os.getenv('TELEGRAM_BOT_TOKEN', '')
+DEFAULT_CHAT_ID = TELEGRAM_CHAT_ID if TELEGRAM_CHAT_ID else os.getenv('TELEGRAM_CHAT_ID', '2023815877')
+DEFAULT_CHECK_INTERVAL = CHECK_INTERVAL if CHECK_INTERVAL else 30
+DEFAULT_EARLIEST_DATE = EARLIEST_ACCEPTABLE_DATE if EARLIEST_ACCEPTABLE_DATE else '2026-01-31'
+DEFAULT_LATEST_DATE = LATEST_ACCEPTABLE_DATE if LATEST_ACCEPTABLE_DATE else '2026-12-31'
+DEFAULT_CURRENT_DATE = CURRENT_BOOKING_DATE if CURRENT_BOOKING_DATE else '2027-06-30'
+DEFAULT_LOCATION = USER_CONSULATE if USER_CONSULATE else 'Toronto'
 
 class VisaBotGUI:
     def __init__(self, root: tk.Tk) -> None:
@@ -30,7 +33,7 @@ class VisaBotGUI:
         self.root = root
         self.root.title("US Visa Appointment Bot - GUI")
         self.root.configure(bg="#1e1e1e")
-        self.root.geometry("900x700")
+        self.root.geometry("900x720")  # Slightly taller for updated info label
         
         # Process tracking
         self.bot_thread: Optional[threading.Thread] = None
@@ -54,19 +57,21 @@ class VisaBotGUI:
         # Email
         label("Email:", 0).grid(row=0, column=0, sticky="w", pady=5)
         self.email_var = tk.StringVar()
-        tk.Entry(input_frame, textvariable=self.email_var, width=40, font=("Arial", 10)).grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        self.email_entry = tk.Entry(input_frame, textvariable=self.email_var, width=40, font=("Arial", 10))
+        self.email_entry.grid(row=0, column=1, padx=10, pady=5, sticky="w")
         
         # Password
         label("Password:", 1).grid(row=1, column=0, sticky="w", pady=5)
         self.password_var = tk.StringVar()
-        tk.Entry(input_frame, textvariable=self.password_var, show="*", width=40, font=("Arial", 10)).grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        self.password_entry = tk.Entry(input_frame, textvariable=self.password_var, show="*", width=40, font=("Arial", 10))
+        self.password_entry.grid(row=1, column=1, padx=10, pady=5, sticky="w")
         
         # Location
         label("Location:", 2).grid(row=2, column=0, sticky="w", pady=5)
         self.location_var = tk.StringVar(value=DEFAULT_LOCATION)
-        location_menu = tk.OptionMenu(input_frame, self.location_var, *CONSULATES.keys())
-        location_menu.config(width=37, font=("Arial", 10))
-        location_menu.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        self.location_menu = tk.OptionMenu(input_frame, self.location_var, *CONSULATES.keys())
+        self.location_menu.config(width=37, font=("Arial", 10))
+        self.location_menu.grid(row=2, column=1, padx=10, pady=5, sticky="w")
         
         # Earliest Date
         label("Earliest Date:", 3).grid(row=3, column=0, sticky="w", pady=5)
@@ -106,16 +111,49 @@ class VisaBotGUI:
         )
         self.current_date.set_date(datetime.strptime(DEFAULT_CURRENT_DATE, "%Y-%m-%d"))
         self.current_date.grid(row=5, column=1, sticky="w", padx=10, pady=5)
-        
+
+        # Telegram input toggle
+        self.use_telegram_var = tk.BooleanVar(value=False)
+        self.telegram_toggle = tk.Checkbutton(
+            input_frame,
+            text="Use Telegram Inputs (override GUI fields)",
+            variable=self.use_telegram_var,
+            command=self._toggle_input_mode,
+            bg="#1e1e1e",
+            fg="#ffffff",
+            selectcolor="#1e1e1e",
+            font=("Arial", 9)
+        )
+        self.telegram_toggle.grid(row=6, column=0, columnspan=2, pady=5, sticky="w")
+
         # Info label
         info_label = tk.Label(
             input_frame, 
-            text="Default: Token, Chat ID (2023815877), Check Interval (30s) are pre-configured",
+            text="Note: Telegram Token should be set in .env file. Chat ID, Check Interval (30s) use defaults from settings.\nChrome browser will be visible (not headless). Console window shows detailed logs.\nYou will receive Telegram notifications for each attempt number. Stop button and /stop command close Chrome and end the process.\nToggle 'Use Telegram Inputs' to answer prompts in Telegram instead of GUI fields.",
             bg="#1e1e1e", 
             fg="#888888", 
-            font=("Arial", 8, "italic")
+            font=("Arial", 8, "italic"),
+            justify="left"
         )
-        info_label.grid(row=6, column=0, columnspan=2, pady=5, sticky="w")
+        info_label.grid(row=7, column=0, columnspan=2, pady=5, sticky="w")
+
+    def _toggle_input_mode(self) -> None:
+        """Enable/disable GUI inputs when Telegram inputs are used."""
+        use_telegram = self.use_telegram_var.get()
+        state = "disabled" if use_telegram else "normal"
+
+        for widget in [
+            self.email_entry,
+            self.password_entry,
+            self.location_menu,
+            self.earliest_date,
+            self.latest_date,
+            self.current_date,
+        ]:
+            try:
+                widget.configure(state=state)
+            except Exception:
+                pass
         
     def build_controls(self) -> None:
         """Build control buttons (Start, Stop, Quit)."""
@@ -208,49 +246,51 @@ class VisaBotGUI:
         
     def start_bot(self) -> None:
         """Start the bot in a separate thread."""
-        # Validate inputs
-        email = self.email_var.get().strip()
-        password = self.password_var.get().strip()
-        
-        if not email or not password:
-            messagebox.showerror("Input Error", "Email and Password are required.")
-            return
-        
-        # Validate email format
-        if '@' not in email or '.' not in email.split('@')[1] if '@' in email else '':
-            messagebox.showerror("Input Error", "Please enter a valid email address.")
-            return
-        
-        # Validate password length
-        if len(password) < 1:
-            messagebox.showerror("Input Error", "Password cannot be empty.")
-            return
-        
-        # Get and validate date values
-        try:
-            earliest = self.earliest_date.get_date().strftime("%Y-%m-%d")
-            latest = self.latest_date.get_date().strftime("%Y-%m-%d")
-            current = self.current_date.get_date().strftime("%Y-%m-%d")
+        use_telegram = self.use_telegram_var.get()
+        if not use_telegram:
+            # Validate inputs
+            email = self.email_var.get().strip()
+            password = self.password_var.get().strip()
             
-            # Validate date logic
-            earliest_date_obj = datetime.strptime(earliest, "%Y-%m-%d")
-            latest_date_obj = datetime.strptime(latest, "%Y-%m-%d")
-            current_date_obj = datetime.strptime(current, "%Y-%m-%d")
-            
-            if earliest_date_obj > latest_date_obj:
-                messagebox.showerror("Date Error", "Earliest date must be before or equal to latest date.")
+            if not email or not password:
+                messagebox.showerror("Input Error", "Email and Password are required.")
                 return
             
-            if current_date_obj < earliest_date_obj:
-                messagebox.showerror("Date Error", "Current booking date should be within the date range.")
+            # Validate email format
+            if '@' not in email or '.' not in email.split('@')[1] if '@' in email else '':
+                messagebox.showerror("Input Error", "Please enter a valid email address.")
                 return
+            
+            # Validate password length
+            if len(password) < 1:
+                messagebox.showerror("Input Error", "Password cannot be empty.")
+                return
+            
+            # Get and validate date values
+            try:
+                earliest = self.earliest_date.get_date().strftime("%Y-%m-%d")
+                latest = self.latest_date.get_date().strftime("%Y-%m-%d")
+                current = self.current_date.get_date().strftime("%Y-%m-%d")
                 
-        except ValueError as e:
-            messagebox.showerror("Date Error", f"Invalid date format: {e}")
-            return
-        except Exception as e:
-            messagebox.showerror("Date Error", f"Error processing dates: {e}")
-            return
+                # Validate date logic
+                earliest_date_obj = datetime.strptime(earliest, "%Y-%m-%d")
+                latest_date_obj = datetime.strptime(latest, "%Y-%m-%d")
+                current_date_obj = datetime.strptime(current, "%Y-%m-%d")
+                
+                if earliest_date_obj > latest_date_obj:
+                    messagebox.showerror("Date Error", "Earliest date must be before or equal to latest date.")
+                    return
+                
+                if current_date_obj < earliest_date_obj:
+                    messagebox.showerror("Date Error", "Current booking date should be within the date range.")
+                    return
+                    
+            except ValueError as e:
+                messagebox.showerror("Date Error", f"Invalid date format: {e}")
+                return
+            except Exception as e:
+                messagebox.showerror("Date Error", f"Error processing dates: {e}")
+                return
         
         # Update UI
         self.status_label.config(text="Status: Running", fg="#00ff00")
@@ -261,11 +301,14 @@ class VisaBotGUI:
         
         self.log("="*60 + "\n")
         self.log("Starting US Visa Appointment Bot...\n")
-        self.log(f"Email: {self.email_var.get()}\n")
-        self.log(f"Location: {self.location_var.get()}\n")
-        self.log(f"Earliest Date: {earliest}\n")
-        self.log(f"Latest Date: {latest}\n")
-        self.log(f"Current Booking: {current}\n")
+        if use_telegram:
+            self.log("Input Mode: Telegram\n")
+        else:
+            self.log(f"Email: {self.email_var.get()}\n")
+            self.log(f"Location: {self.location_var.get()}\n")
+            self.log(f"Earliest Date: {earliest}\n")
+            self.log(f"Latest Date: {latest}\n")
+            self.log(f"Current Booking: {current}\n")
         self.log("="*60 + "\n\n")
         
         # Start bot in separate thread
@@ -277,41 +320,55 @@ class VisaBotGUI:
         try:
             # Import main function
             from main import main as run_main
+            use_telegram = self.use_telegram_var.get()
+
+            if not use_telegram:
+                # Get inputs from GUI
+                email = self.email_var.get()
+                password = self.password_var.get()
+                location = self.location_var.get()
+                
+                # Validate date inputs
+                try:
+                    earliest_date = self.earliest_date.get_date().strftime("%Y-%m-%d")
+                    latest_date = self.latest_date.get_date().strftime("%Y-%m-%d")
+                    current_booking_date = self.current_date.get_date().strftime("%Y-%m-%d")
+                except Exception as e:
+                    self.log(f"[ERROR] Invalid date format: {e}\n")
+                    self.status_label.config(text="Status: Error", fg="#ff0000")
+                    self.start_button.config(state="normal")
+                    self.stop_button.config(state="disabled")
+                    self.is_running = False
+                    return
             
-            # Get inputs from GUI
-            email = self.email_var.get()
-            password = self.password_var.get()
-            location = self.location_var.get()
+            # Get values from defaults (which come from settings.py or .env)
+            telegram_token = DEFAULT_TELEGRAM_TOKEN
+            telegram_chat_id = DEFAULT_CHAT_ID
+            check_interval = DEFAULT_CHECK_INTERVAL
             
-            # Validate date inputs
-            try:
-                earliest_date = self.earliest_date.get_date().strftime("%Y-%m-%d")
-                latest_date = self.latest_date.get_date().strftime("%Y-%m-%d")
-                current_booking_date = self.current_date.get_date().strftime("%Y-%m-%d")
-            except Exception as e:
-                self.log(f"[ERROR] Invalid date format: {e}\n")
+            # Validate that token is set
+            if not telegram_token:
+                self.log("[ERROR] Telegram Bot Token not found. Please set TELEGRAM_BOT_TOKEN in .env file or settings.py\n")
                 self.status_label.config(text="Status: Error", fg="#ff0000")
                 self.start_button.config(state="normal")
                 self.stop_button.config(state="disabled")
                 self.is_running = False
                 return
             
-            telegram_token = DEFAULT_TELEGRAM_TOKEN
-            telegram_chat_id = DEFAULT_CHAT_ID
-            check_interval = DEFAULT_CHECK_INTERVAL
-            
-            # Prepare inputs dictionary for main()
-            gui_inputs: Dict[str, Any] = {
-                'email': email,
-                'password': password,
-                'telegram_token': telegram_token,
-                'telegram_chat_id': telegram_chat_id,
-                'location': location,
-                'earliest_date': earliest_date,
-                'latest_date': latest_date,
-                'current_date': current_booking_date,
-                'check_interval': check_interval
-            }
+            gui_inputs: Optional[Dict[str, Any]] = None
+            if not use_telegram:
+                # Prepare inputs dictionary for main()
+                gui_inputs = {
+                    'email': email,
+                    'password': password,
+                    'telegram_token': telegram_token,
+                    'telegram_chat_id': telegram_chat_id,
+                    'location': location,
+                    'earliest_date': earliest_date,
+                    'latest_date': latest_date,
+                    'current_date': current_booking_date,
+                    'check_interval': check_interval
+                }
             
             self.log(f"[INFO] Initializing bot with GUI inputs...\n")
             
@@ -342,8 +399,15 @@ class VisaBotGUI:
                 if self.stop_event.is_set():
                     return
                     
-                # Run main with GUI inputs (this will skip the interactive prompts)
-                run_main(gui_inputs=gui_inputs)
+                # Toggle Telegram inputs if requested
+                if use_telegram:
+                    os.environ["USE_TELEGRAM_INPUTS"] = "true"
+                else:
+                    os.environ["USE_TELEGRAM_INPUTS"] = "false"
+
+                # Run main with GUI inputs and pass stop_event for proper stopping
+                # This will skip the interactive prompts and allow proper stopping
+                run_main(gui_inputs=gui_inputs, stop_event=self.stop_event)
             except KeyboardInterrupt:
                 self.log("[INFO] Bot interrupted by user\n")
             except Exception as e:
@@ -371,12 +435,23 @@ class VisaBotGUI:
             self.stop_event.clear()
             
     def stop_bot(self) -> None:
-        """Stop the bot by setting the stop event."""
+        """Stop the bot by setting the stop event and forcing cleanup."""
         if self.is_running:
             self.is_running = False
             self.stop_event.set()  # Signal the thread to stop
-            self.log("[INFO] Stopping bot...\n")
+            self.log("[INFO] Stopping bot and closing Chrome...\n")
             self.status_label.config(text="Status: Stopping...", fg="#ffaa00")
+            
+            # Force cleanup - try to close Chrome processes if needed
+            try:
+                import subprocess
+                # Kill Chrome processes related to automation (chromedriver)
+                subprocess.run(["taskkill", "/F", "/IM", "chromedriver.exe"], 
+                             capture_output=True, shell=True)
+                subprocess.run(["taskkill", "/F", "/IM", "chrome.exe"], 
+                             capture_output=True, shell=True)
+            except Exception as e:
+                self.log(f"[WARNING] Could not force close Chrome: {e}\n")
         else:
             messagebox.showinfo("Info", "Bot is not running.")
             

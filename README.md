@@ -56,30 +56,40 @@ ChromeDriver should be installed automatically, but if you encounter issues:
 - **macOS**: `brew install chromedriver`
 - **Linux**: `sudo apt-get install chromium-chromedriver`
 
-### 3. Configure Environment Variables (Optional)
+### 3. Configure Environment Variables
 
-Create a `.env` file in the project root:
+**IMPORTANT**: Create a `.env` file in the project root with your credentials:
 
-```env
-# Visa Website Credentials
-VISA_EMAIL=your_email@example.com
-VISA_PASSWORD=your_password
+1. Copy `env.example` to `.env`:
+   ```bash
+   copy env.example .env
+   ```
 
-# Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
-TELEGRAM_CHAT_ID=your_telegram_chat_id_here
+2. Edit `.env` and fill in your values:
+   ```env
+   # Visa Website Credentials
+   VISA_EMAIL=your_email@example.com
+   VISA_PASSWORD=your_password
 
-# Check interval in seconds (default: 30)
-CHECK_INTERVAL=30
+   # Telegram Bot Configuration (REQUIRED)
+   # Get your bot token from @BotFather on Telegram
+   TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+   TELEGRAM_CHAT_ID=2023815877
 
-# Date Settings
-EARLIEST_ACCEPTABLE_DATE=2026-01-31
-LATEST_ACCEPTABLE_DATE=2026-12-31
-CURRENT_BOOKING_DATE=2027-06-30
-LOCATION=Toronto
-```
+   # Check interval in seconds (default: 30)
+   CHECK_INTERVAL=30
 
-**Note**: The GUI mode prompts for these values, so `.env` is optional when using GUI.
+   # Date Settings
+   EARLIEST_ACCEPTABLE_DATE=2026-01-31
+   LATEST_ACCEPTABLE_DATE=2026-12-31
+   CURRENT_BOOKING_DATE=2027-06-30
+   LOCATION=Toronto
+   ```
+
+**Security Note**: 
+- The `.env` file is already in `.gitignore` and will NOT be committed to git
+- Never commit your `.env` file or share it publicly
+- The Telegram bot token is required - set it in `.env` file
 
 ## Usage
 

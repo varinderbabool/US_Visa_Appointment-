@@ -9,8 +9,10 @@ load_dotenv()
 NUM_PARTICIPANTS = 1
 
 # Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
+# IMPORTANT: Set these in .env file for security (never commit .env to git)
+# Default values provided for convenience but should be overridden in .env
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', os.getenv('TELEGRAM_TOKEN', ''))
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '2023815877')
 
 # Visa Website Credentials
 USER_EMAIL = os.getenv('VISA_EMAIL', '')
