@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 
 # Import settings for consulates and configuration
 from settings import CONSULATES, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, CHECK_INTERVAL
-from settings import EARLIEST_ACCEPTABLE_DATE, LATEST_ACCEPTABLE_DATE, CURRENT_BOOKING_DATE, USER_CONSULATE
+from settings import EARLIEST_ACCEPTABLE_DATE, LATEST_ACCEPTABLE_DATE, CURRENT_BOOKING_DATE, USER_CONSULATE, USER_CONSULATE_2
 
 # Default values (from settings.py or environment variables)
 # Note: Sensitive values like Telegram token should be in .env file, not hardcoded
@@ -22,6 +22,7 @@ DEFAULT_EARLIEST_DATE = EARLIEST_ACCEPTABLE_DATE if EARLIEST_ACCEPTABLE_DATE els
 DEFAULT_LATEST_DATE = LATEST_ACCEPTABLE_DATE if LATEST_ACCEPTABLE_DATE else '2026-12-31'
 DEFAULT_CURRENT_DATE = CURRENT_BOOKING_DATE if CURRENT_BOOKING_DATE else '2027-06-30'
 DEFAULT_LOCATION = USER_CONSULATE if USER_CONSULATE else 'Toronto'
+DEFAULT_LOCATION_2 = USER_CONSULATE_2 if USER_CONSULATE_2 else ''
 
 class VisaBotGUI:
     def __init__(self, root: tk.Tk) -> None:
@@ -66,15 +67,22 @@ class VisaBotGUI:
         self.password_entry = tk.Entry(input_frame, textvariable=self.password_var, show="*", width=40, font=("Arial", 10))
         self.password_entry.grid(row=1, column=1, padx=10, pady=5, sticky="w")
         
-        # Location
-        label("Location:", 2).grid(row=2, column=0, sticky="w", pady=5)
+        # Location 1
+        label("Location 1:", 2).grid(row=2, column=0, sticky="w", pady=5)
         self.location_var = tk.StringVar(value=DEFAULT_LOCATION)
         self.location_menu = tk.OptionMenu(input_frame, self.location_var, *CONSULATES.keys())
         self.location_menu.config(width=37, font=("Arial", 10))
         self.location_menu.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+
+        # Location 2 (optional)
+        label("Location 2 (optional):", 3).grid(row=3, column=0, sticky="w", pady=5)
+        self.location_var_2 = tk.StringVar(value=DEFAULT_LOCATION_2)
+        self.location_menu_2 = tk.OptionMenu(input_frame, self.location_var_2, *CONSULATES.keys())
+        self.location_menu_2.config(width=37, font=("Arial", 10))
+        self.location_menu_2.grid(row=3, column=1, padx=10, pady=5, sticky="w")
         
         # Earliest Date
-        label("Earliest Date:", 3).grid(row=3, column=0, sticky="w", pady=5)
+        label("Earliest Date:", 4).grid(row=4, column=0, sticky="w", pady=5)
         self.earliest_date = DateEntry(
             input_frame, 
             width=12, 
@@ -84,10 +92,10 @@ class VisaBotGUI:
             font=("Arial", 10)
         )
         self.earliest_date.set_date(datetime.strptime(DEFAULT_EARLIEST_DATE, "%Y-%m-%d"))
-        self.earliest_date.grid(row=3, column=1, sticky="w", padx=10, pady=5)
+        self.earliest_date.grid(row=4, column=1, sticky="w", padx=10, pady=5)
         
         # Latest Date
-        label("Latest Date:", 4).grid(row=4, column=0, sticky="w", pady=5)
+        label("Latest Date:", 5).grid(row=5, column=0, sticky="w", pady=5)
         self.latest_date = DateEntry(
             input_frame, 
             width=12, 
@@ -97,10 +105,10 @@ class VisaBotGUI:
             font=("Arial", 10)
         )
         self.latest_date.set_date(datetime.strptime(DEFAULT_LATEST_DATE, "%Y-%m-%d"))
-        self.latest_date.grid(row=4, column=1, sticky="w", padx=10, pady=5)
+        self.latest_date.grid(row=5, column=1, sticky="w", padx=10, pady=5)
         
         # Current Booking Date
-        label("Current Booking Date:", 5).grid(row=5, column=0, sticky="w", pady=5)
+        label("Current Booking Date:", 6).grid(row=6, column=0, sticky="w", pady=5)
         self.current_date = DateEntry(
             input_frame, 
             width=12, 
@@ -110,7 +118,7 @@ class VisaBotGUI:
             font=("Arial", 10)
         )
         self.current_date.set_date(datetime.strptime(DEFAULT_CURRENT_DATE, "%Y-%m-%d"))
-        self.current_date.grid(row=5, column=1, sticky="w", padx=10, pady=5)
+        self.current_date.grid(row=6, column=1, sticky="w", padx=10, pady=5)
 
         # Telegram input toggle
         self.use_telegram_var = tk.BooleanVar(value=False)
@@ -124,18 +132,18 @@ class VisaBotGUI:
             selectcolor="#1e1e1e",
             font=("Arial", 9)
         )
-        self.telegram_toggle.grid(row=6, column=0, columnspan=2, pady=5, sticky="w")
+        self.telegram_toggle.grid(row=7, column=0, columnspan=2, pady=5, sticky="w")
 
         # Info label
         info_label = tk.Label(
             input_frame, 
-            text="Note: Telegram Token should be set in .env file. Chat ID, Check Interval (30s) use defaults from settings.\nChrome browser will be visible (not headless). Console window shows detailed logs.\nYou will receive Telegram notifications for each attempt number. Stop button and /stop command close Chrome and end the process.\nToggle 'Use Telegram Inputs' to answer prompts in Telegram instead of GUI fields.",
+            text="Note: Telegram Token should be set in .env file. Chat ID, Check Interval (5s) use defaults from settings.\nChrome browser will be visible (not headless). Console window shows detailed logs.\nYou will receive Telegram notifications for each attempt number. Stop button and /stop command close Chrome and end the process.\nToggle 'Use Telegram Inputs' to answer prompts in Telegram instead of GUI fields.",
             bg="#1e1e1e", 
             fg="#888888", 
             font=("Arial", 8, "italic"),
             justify="left"
         )
-        info_label.grid(row=7, column=0, columnspan=2, pady=5, sticky="w")
+        info_label.grid(row=8, column=0, columnspan=2, pady=5, sticky="w")
 
     def _toggle_input_mode(self) -> None:
         """Enable/disable GUI inputs when Telegram inputs are used."""
@@ -146,6 +154,7 @@ class VisaBotGUI:
             self.email_entry,
             self.password_entry,
             self.location_menu,
+            self.location_menu_2,
             self.earliest_date,
             self.latest_date,
             self.current_date,
@@ -305,7 +314,9 @@ class VisaBotGUI:
             self.log("Input Mode: Telegram\n")
         else:
             self.log(f"Email: {self.email_var.get()}\n")
-            self.log(f"Location: {self.location_var.get()}\n")
+            self.log(f"Location 1: {self.location_var.get()}\n")
+            if self.location_var_2.get().strip():
+                self.log(f"Location 2: {self.location_var_2.get()}\n")
             self.log(f"Earliest Date: {earliest}\n")
             self.log(f"Latest Date: {latest}\n")
             self.log(f"Current Booking: {current}\n")
@@ -327,6 +338,7 @@ class VisaBotGUI:
                 email = self.email_var.get()
                 password = self.password_var.get()
                 location = self.location_var.get()
+                location_2 = self.location_var_2.get()
                 
                 # Validate date inputs
                 try:
@@ -364,6 +376,7 @@ class VisaBotGUI:
                     'telegram_token': telegram_token,
                     'telegram_chat_id': telegram_chat_id,
                     'location': location,
+                    'location2': location_2,
                     'earliest_date': earliest_date,
                     'latest_date': latest_date,
                     'current_date': current_booking_date,

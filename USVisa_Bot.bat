@@ -11,11 +11,11 @@ REM Double-click this file to start the bot
 REM ============================================================
 REM Features:
 REM   - Optimized calendar interactions (JavaScript-based)
-REM   - Automatic retry from home page when no dates found
+REM   - Multi-location rotation (Location 1 + optional Location 2)
+REM   - No home navigation during retries (stays on appointment page)
 REM   - System busy detection only when calendar fails to open
-REM   - 30-second wait only on home page during retries
+REM   - Faster check interval defaults
 REM   - Telegram notifications for each attempt number
-REM   - Retry from home if time dropdown is empty
 REM   - Proper stop functionality (Stop button or /stop) closes Chrome and ends process
 REM ============================================================
 
@@ -32,10 +32,10 @@ echo Chrome browser will be visible when bot runs (not headless).
 echo.
 echo Features:
 echo   - Optimized calendar interactions (JavaScript-based)
-echo   - Automatic retry mechanism from home page
+echo   - Multi-location rotation (Location 1 + optional Location 2)
+echo   - No home navigation during retries
 echo   - Real-time log monitoring
 echo   - Telegram notifications for each attempt number
-echo   - Retry from home if time dropdown is empty
 echo   - Proper stop functionality (Stop button or /stop closes Chrome)
 echo.
 echo ============================================================

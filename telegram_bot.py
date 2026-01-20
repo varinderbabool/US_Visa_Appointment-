@@ -19,13 +19,11 @@ class TelegramNotifier:
         self.bot_token = bot_token
         self.chat_id = str(chat_id)  # Ensure string type
         self.bot = Bot(token=bot_token)
-        self.confirmation_callback: Optional[Callable[[bool], None]] = None
         self.stop_callback = stop_callback
         self.pending_confirmation: bool = False
         self.pending_time_selection: bool = False
         self.pending_input: bool = False
         self.input_queue = queue.Queue()
-        self.input_prompt: Optional[str] = None
         self.confirmation_queue = queue.Queue()
         self.time_queue = queue.Queue()
         self.app = None
@@ -244,7 +242,6 @@ class TelegramNotifier:
     def request_input_sync(self, prompt: str, timeout: int = 300) -> str:
         """Request a single input value from the user via Telegram."""
         self.pending_input = True
-        self.input_prompt = prompt
         if self._loop and self._loop.is_running():
             future = asyncio.run_coroutine_threadsafe(self.send_notification(prompt), self._loop)
             future.result(timeout=30)

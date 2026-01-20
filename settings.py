@@ -5,18 +5,12 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Account Info
-NUM_PARTICIPANTS = 1
-
 # Telegram Bot Configuration
 # IMPORTANT: Set these in .env file for security (never commit .env to git)
 # Default values provided for convenience but should be overridden in .env
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', os.getenv('TELEGRAM_TOKEN', ''))
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '2023815877')
 
-# Visa Website Credentials
-USER_EMAIL = os.getenv('VISA_EMAIL', '')
-USER_PASSWORD = os.getenv('VISA_PASSWORD', '')
 LOGIN_URL = os.getenv('VISA_URL', 'https://ais.usvisa-info.com/en-ca/niv/users/sign_in')
 
 # Date Range Settings
@@ -40,24 +34,11 @@ CONSULATES = {
 
 # Your consulate's city (choose from CONSULATES above)
 USER_CONSULATE = os.getenv('LOCATION', 'Toronto')
+# Optional second consulate for alternating checks
+USER_CONSULATE_2 = os.getenv('LOCATION_2', '')
 
 # Browser Settings
 SHOW_GUI = os.getenv('HEADLESS', 'false').lower() != 'true'  # Show browser window
-DETACH = False  # Keep browser open after script ends
 
 # Timing Settings
-CHECK_INTERVAL = int(os.getenv('CHECK_INTERVAL', '30'))  # Check interval in seconds (default: 30 seconds)
-TIMEOUT = 10  # Selenium timeout in seconds
-NEW_SESSION_AFTER_FAILURES = 5  # Create new session after N failures
-NEW_SESSION_DELAY = 60  # Delay before starting new session (seconds)
-FAIL_RETRY_DELAY = 30  # Delay before retrying after failure (seconds)
-
-# Retry Settings
-MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
-RETRY_DELAY = int(os.getenv('RETRY_DELAY', '10'))  # seconds
-
-# State file for storing preferences
-STATE_FILE = os.getenv('STATE_FILE', 'appointment_state.json')
-
-# Test Mode (set to True to test without actually booking)
-TEST_MODE = os.getenv('TEST_MODE', 'false').lower() == 'true'
+CHECK_INTERVAL = int(os.getenv('CHECK_INTERVAL', '5'))  # Check interval in seconds (default: 5 seconds)

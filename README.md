@@ -7,9 +7,9 @@ An automated bot that monitors US visa appointment availability and books appoin
 - 🤖 Automated monitoring of US visa appointment availability
 - 📱 Telegram bot integration for notifications
 - 🖥️ **GUI Interface** - Easy-to-use graphical interface
-- ⏰ Configurable check intervals (default: 30 seconds)
+- ⏰ Configurable check intervals (default: 5 seconds)
+- 🔁 Optional two-location rotation (Location 1 + Location 2)
 - 🔄 Automatic retry logic for failed operations
-- 💾 State persistence for preferences
 - 📝 Comprehensive logging
 - 🎯 Automatic booking when slots are found
 
@@ -33,7 +33,7 @@ An automated bot that monitors US visa appointment availability and books appoin
 
 3. **Enter Your Details**
    - Email and Password
-   - Location (consulate)
+   - Location 1 (consulate) and optional Location 2
    - Date ranges (Earliest, Latest, Current Booking Date)
 
 4. **Click "Start Bot"**
@@ -76,14 +76,15 @@ ChromeDriver should be installed automatically, but if you encounter issues:
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
    TELEGRAM_CHAT_ID=2023815877
 
-   # Check interval in seconds (default: 30)
-   CHECK_INTERVAL=30
+   # Check interval in seconds (default: 5)
+   CHECK_INTERVAL=5
 
    # Date Settings
    EARLIEST_ACCEPTABLE_DATE=2026-01-31
    LATEST_ACCEPTABLE_DATE=2026-12-31
    CURRENT_BOOKING_DATE=2027-06-30
    LOCATION=Toronto
+   LOCATION_2=
    ```
 
 **Security Note**: 
@@ -109,13 +110,13 @@ python main.py
 The bot will prompt you for:
 - Email and Password
 - Telegram Chat ID (optional)
-- Location selection
+- Location 1 and optional Location 2 selection
 
 ## How It Works
 
 1. **Login**: Bot logs in to the visa appointment website
 2. **Navigation**: Navigates to the reschedule appointment page
-3. **Location Selection**: Selects your preferred consulate location
+3. **Location Selection**: Selects your preferred consulate location(s)
 4. **Monitoring**: Continuously checks for available dates
 5. **Booking**: Automatically books when a suitable date is found (earlier than current booking and within date range)
 6. **Notifications**: Sends Telegram notifications for status updates
@@ -129,7 +130,6 @@ USVisa/
 ├── settings.py             # Configuration settings
 ├── visa_scraper.py         # Web scraping and automation
 ├── telegram_bot.py         # Telegram bot integration
-├── state_manager.py        # State persistence
 ├── requirements.txt        # Python dependencies
 ├── USVisa_Bot.bat         # Windows launcher (GUI)
 ├── USVisa_Bot.vbs         # Windows launcher (silent)

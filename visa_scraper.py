@@ -76,6 +76,14 @@ class VisaScraper:
         except Exception as e:
             logger.warning(f"Failed to clear appointment date field: {e}")
             return False
+
+    def _scroll_to_top(self) -> None:
+        """Ensure page is scrolled to top for visibility."""
+        try:
+            if self.driver:
+                self.driver.execute_script("window.scrollTo(0, 0);")
+        except Exception:
+            pass
     
     def set_max_date(self, max_date_str: str):
         """Set maximum date for checking appointments."""
@@ -701,6 +709,74 @@ class VisaScraper:
         except Exception as e:
             logger.error(f"Failed to select location: {e}")
             return False
+
+    def cycle_location(self, target_location: str, alternate_locations: Optional[List[str]] = None) -> bool:
+        """Select an alternate location, then switch back to target.
+
+        This helps refresh the calendar without navigating away.
+        """
+        try:
+            if not self.driver:
+                logger.warning("Cannot cycle location - driver not initialized")
+                return False
+
+            # Build alternate list from select options if not provided
+            if not alternate_locations:
+                try:
+                    from selenium.webdriver.support.ui import Select
+                    select_elem = self.driver.find_element(By.ID, "appointments_consulate_appointment_facility_id")
+                    select = Select(select_elem)
+                    alternate_locations = [
+                        option.text.strip()
+                        for option in select.options
+                        if option.text.strip() and option.text.strip().lower() != target_location.lower()
+                    ]
+                except Exception as e:
+                    logger.debug(f"Failed to read location options from select: {e}")
+                    alternate_locations = []
+
+            # Pick the first alternate that isn't the target
+            alternate_location = None
+            for location in (alternate_locations or []):
+                if location.lower() != target_location.lower():
+                    alternate_location = location
+                    break
+
+            if not alternate_location:
+                logger.warning("No alternate location available to cycle")
+                return False
+
+            logger.info(f"Switching location to {alternate_location} and back to {target_location}")
+
+            # Ensure calendar is closed before changing location
+            self._close_calendar_if_open()
+            time.sleep(0.3)
+
+            if not self.select_location(alternate_location):
+                logger.warning("Failed to select alternate location")
+                return False
+
+            # Ensure calendar is closed after selecting alternate location
+            self._close_calendar_if_open()
+            time.sleep(0.3)
+            self.clear_date_field()
+
+            if not self.select_location(target_location):
+                logger.warning("Failed to re-select target location")
+                return False
+
+            # Close any existing calendar, then open fresh for target location
+            self._close_calendar_if_open()
+            time.sleep(0.3)
+            self._open_calendar()
+            time.sleep(0.3)
+            self.clear_date_field()
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to cycle location: {e}")
+            return False
     
     def go_to_home(self) -> bool:
         """Navigate back to home page by directly navigating to the home URL."""
@@ -737,6 +813,13 @@ class VisaScraper:
         """
         try:
             wait = WebDriverWait(self.driver, 10)
+
+            # If calendar is already open, nothing to do
+            if self._is_calendar_open():
+                logger.info("Calendar is already open")
+                return True
+
+            self._scroll_to_top()
             
             # Wait for date field to be present
             date_field = wait.until(EC.presence_of_element_located((By.ID, "appointments_consulate_appointment_date")))
@@ -774,6 +857,87 @@ class VisaScraper:
             
         except Exception as e:
             logger.error(f"Error opening calendar: {e}")
+            return False
+
+    def _toggle_calendar(self) -> bool:
+        """Toggle calendar open/close by clicking the date field."""
+        try:
+            if not self.driver:
+                return False
+            date_field = self.driver.find_element(By.ID, "appointments_consulate_appointment_date")
+            self.driver.execute_script("arguments[0].click();", date_field)
+            logger.info("Toggled calendar via date field")
+            return True
+        except Exception as e:
+            logger.debug(f"Failed to toggle calendar: {e}")
+            return False
+
+    def _is_calendar_open(self) -> bool:
+        """Check if the calendar popup is currently visible."""
+        try:
+            if not self.driver:
+                return False
+            calendar_popup_selectors = [
+                ".ui-datepicker",
+                ".calendar-popup",
+                ".datepicker",
+                "[role='dialog']",
+                ".yatri-datepicker",
+            ]
+            for selector in calendar_popup_selectors:
+                try:
+                    elem = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    if elem.is_displayed():
+                        return True
+                except NoSuchElementException:
+                    continue
+            return False
+        except Exception:
+            return False
+
+    def _close_calendar_if_open(self) -> bool:
+        """Close calendar popup if it is currently open."""
+        try:
+            if not self.driver:
+                return False
+            if not self._is_calendar_open():
+                return True
+            from selenium.webdriver.common.action_chains import ActionChains
+            from selenium.webdriver.support import expected_conditions as EC
+
+            # Prefer a real click on the location select to dismiss the calendar
+            try:
+                self._scroll_to_top()
+                location_select = self.driver.find_element(By.ID, "appointments_consulate_appointment_facility_id")
+                ActionChains(self.driver).move_to_element(location_select).click().perform()
+            except Exception:
+                pass
+
+            # Fallback: click date field toggle
+            try:
+                date_field = self.driver.find_element(By.ID, "appointments_consulate_appointment_date")
+                ActionChains(self.driver).move_to_element(date_field).click().perform()
+            except Exception:
+                pass
+
+            # Fallback: click top-left of the page (outside calendar)
+            try:
+                ActionChains(self.driver).move_by_offset(5, 5).click().perform()
+            except Exception:
+                pass
+
+            # Wait for calendar to disappear
+            try:
+                WebDriverWait(self.driver, 2).until(
+                    EC.invisibility_of_element_located((By.CSS_SELECTOR, ".ui-datepicker, .calendar-popup, .datepicker, [role='dialog'], .yatri-datepicker"))
+                )
+                logger.info("Calendar closed")
+                return True
+            except Exception:
+                logger.warning("Calendar did not close after click attempts")
+                return False
+        except Exception as e:
+            logger.debug(f"Failed to close calendar: {e}")
             return False
     
     def _click_next_month(self) -> bool:
@@ -882,10 +1046,103 @@ class VisaScraper:
         except Exception as e:
             logger.error(f"Error finding clickable dates: {e}")
             return []
+
+    def _get_calendar_month_year(self) -> Optional[date]:
+        """Read the current calendar month/year from the datepicker header."""
+        try:
+            title_selectors = [
+                ".ui-datepicker-title",
+                ".datepicker-title",
+                ".yatri-datepicker-title",
+            ]
+            title_element = None
+            for selector in title_selectors:
+                try:
+                    title_element = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    if title_element.is_displayed():
+                        break
+                except NoSuchElementException:
+                    continue
+            if not title_element:
+                return None
+
+            title_text = title_element.text.strip()
+            # Expect formats like "January 2026"
+            for fmt in ("%B %Y", "%b %Y"):
+                try:
+                    parsed = datetime.strptime(title_text, fmt)
+                    return date(parsed.year, parsed.month, 1)
+                except ValueError:
+                    continue
+            logger.debug(f"Unrecognized calendar title: {title_text}")
+            return None
+        except Exception as e:
+            logger.debug(f"Failed to read calendar title: {e}")
+            return None
+
+    def _click_prev_month(self) -> bool:
+        """Click the previous month button in the calendar using JavaScript."""
+        try:
+            prev_month_selectors = [
+                ".ui-datepicker-prev",
+                ".datepicker-prev",
+                "a.ui-datepicker-prev",
+                "a[title='Prev']",
+                ".prev",
+                "a.prev",
+                "span.ui-icon-circle-triangle-w",
+                ".yatri-datepicker-prev",
+            ]
+            for selector in prev_month_selectors:
+                try:
+                    prev_button = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    if prev_button.is_displayed() and prev_button.is_enabled():
+                        self.driver.execute_script("arguments[0].scrollIntoView(true);", prev_button)
+                        self.driver.execute_script("arguments[0].click();", prev_button)
+                        logger.info("Clicked previous month button using JavaScript")
+                        return True
+                except NoSuchElementException:
+                    continue
+            logger.warning("Previous month button not found")
+            return False
+        except Exception as e:
+            logger.error(f"Error clicking previous month: {e}")
+            return False
+
+    def _reset_calendar_to_current_month(self, max_steps: int = 36) -> bool:
+        """Reset calendar view back to the current month/year."""
+        try:
+            target = date.today().replace(day=1)
+            steps = 0
+            while steps < max_steps:
+                current = self._get_calendar_month_year()
+                if not current:
+                    return False
+                if current.year == target.year and current.month == target.month:
+                    return True
+                # If calendar is ahead of target, go back
+                if (current.year, current.month) > (target.year, target.month):
+                    if not self._click_prev_month():
+                        return False
+                    time.sleep(0.05)
+                else:
+                    # If somehow behind, move forward
+                    if not self._click_next_month():
+                        return False
+                    time.sleep(0.05)
+                steps += 1
+            logger.warning("Calendar reset exceeded max steps")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to reset calendar: {e}")
+            return False
     
     def _traverse_calendar_for_clickable_date(self, max_months: int = 24) -> Optional:
         """Traverse calendar months until a clickable date is found."""
         try:
+            # Always reset calendar to current month before traversing
+            self._reset_calendar_to_current_month()
+
             months_checked = 0
             max_months_to_check = max_months
             
@@ -903,7 +1160,9 @@ class VisaScraper:
                 if not self._click_next_month():
                     logger.warning("Could not click next month button")
                     break
-                
+
+                # Small delay to allow calendar to render next month
+                time.sleep(0.2)
                 months_checked += 1
                 logger.info(f"Checked {months_checked} month(s), continuing...")
             
@@ -943,6 +1202,7 @@ class VisaScraper:
             return None
         
         try:
+            self._scroll_to_top()
             wait = WebDriverWait(self.driver, 20)
             
             # Wait for date/time fields to appear after location selection

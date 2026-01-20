@@ -70,7 +70,7 @@ def get_inputs_via_telegram(
     )
 
     location_prompt = (
-        "📍 <b>Location:</b>\n"
+        "📍 <b>Location 1:</b>\n"
         f"Available: {', '.join(CONSULATES.keys())}\n"
         f"Default: {defaults['location']}\n"
         "Reply with a city name or leave empty to use default."
@@ -80,6 +80,18 @@ def get_inputs_via_telegram(
     for key in CONSULATES.keys():
         if key.lower() == location_input.strip().lower():
             location = key
+            break
+
+    location2_prompt = (
+        "📍 <b>Location 2 (optional):</b>\n"
+        f"Available: {', '.join(CONSULATES.keys())}\n"
+        "Reply with a city name or leave empty to skip."
+    )
+    location2_input = ask(location2_prompt, default=defaults.get("location2", ""))
+    location2 = ""
+    for key in CONSULATES.keys():
+        if key.lower() == location2_input.strip().lower():
+            location2 = key
             break
 
     earliest_date = ask(
@@ -114,6 +126,7 @@ def get_inputs_via_telegram(
         "email": email,
         "password": password,
         "location": location,
+        "location2": location2,
         "earliest_date": earliest_date,
         "latest_date": latest_date,
         "current_date": current_date,
